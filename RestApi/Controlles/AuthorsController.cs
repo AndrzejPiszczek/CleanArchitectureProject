@@ -1,65 +1,88 @@
-﻿using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using RestApi.Data;
+using RestApi.Models;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace RestApi.Controllers
 {
-    [ApiController]
     [Route("api/[controller]")]
-    public class AuthController : ControllerBase
+    [ApiController]
+    public class AuthorsController : ControllerBase
     {
-        private readonly UserManager<IdentityUser> _userManager;
-        private readonly SignInManager<IdentityUser> _signInManager;
-        private readonly IConfiguration _configuration;
+        private readonly YourDbContext _context;
 
-        public AuthController(UserManager<IdentityUser> userManager, SignInManager<IdentityUser> signInManager, IConfiguration configuration)
+        public AuthorsController(YourDbContext context)
         {
-            _userManager = userManager;
-            _signInManager = signInManager;
-            _configuration = configuration;
+            _context = context;
         }
 
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginModel loginModel)
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<Author>>> GetAuthors()
         {
-            var user = await _userManager.FindByNameAsync(loginModel.Username);
-            if (user != null && await _userManager.CheckPasswordAsync(user, loginModel.Password))
+            return await _context.Authors.ToListAsync();
+        }
+
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Author>> GetAuthor(int id)
+        {
+            var author = await _context.Authors.FindAsync(id);
+            if (author == null)
             {
-                var token = GenerateJwtToken(user);
-                return Ok(new { Token = token });
+                return NotFound();
             }
-            return Unauthorized();
+            return author;
         }
 
-        private string GenerateJwtToken(IdentityUser user)
+        [HttpPost]
+        public async Task<ActionResult<Author>> PostAuthor(Author author)
         {
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            _context.Authors.Add(author);
+            await _context.SaveChangesAsync();
+            return CreatedAtAction(nameof(GetAuthor), new { id = author.Id }, author);
+        }
 
-            var claims = new[]
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutAuthor(int id, Author author)
+        {
+            if (id != author.Id)
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
+                return BadRequest();
+            }
 
-            var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.Now.AddMinutes(30),
-                signingCredentials: creds);
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            _context.Entry(author).State = EntityState.Modified;
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!_context.Authors.Any(e => e.Id == id))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+            return NoContent();
         }
 
-        public class LoginModel
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteAuthor(int id)
         {
-            public string Username { get; set; }
-            public string Password { get; set; }
+            var author = await _context.Authors.FindAsync(id);
+            if (author == null)
+            {
+                return NotFound();
+            }
+
+            _context.Authors.Remove(author);
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
     }
 }
