@@ -1,15 +1,16 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RestApi.Data;
 using RestApi.Models;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace RestApi.Controllers
 {
-    [Route("api/[controller]")]
+    [Authorize(Roles = "Admin")]
     [ApiController]
+    [Route("api/[controller]")]
     public class BooksController : ControllerBase
     {
         private readonly YourDbContext _context;
@@ -20,15 +21,17 @@ namespace RestApi.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous] // Example: Allow anonymous access to the GetBooks endpoint
         public async Task<ActionResult<IEnumerable<Book>>> GetBooks()
         {
-            return await _context.Books.Include(b => b.Author).ToListAsync();
+            return await _context.Books.ToListAsync();
         }
 
+        // Other CRUD methods with [Authorize] attributes
         [HttpGet("{id}")]
         public async Task<ActionResult<Book>> GetBook(int id)
         {
-            var book = await _context.Books.Include(b => b.Author).FirstOrDefaultAsync(b => b.Id == id);
+            var book = await _context.Books.FindAsync(id);
             if (book == null)
             {
                 return NotFound();

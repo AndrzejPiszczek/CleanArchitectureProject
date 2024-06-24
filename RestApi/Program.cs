@@ -56,4 +56,53 @@ app.UseAuthorization();
 app.MapRazorPages();
 app.MapControllers();
 
+await SeedData(app.Services.CreateScope().ServiceProvider);
+
 app.Run();
+
+async Task SeedData(IServiceProvider serviceProvider)
+{
+    var userManager = serviceProvider.GetRequiredService<UserManager<IdentityUser>>();
+    var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+    string[] roles = { "Admin", "User" };
+    foreach (var role in roles)
+    {
+        if (!await roleManager.RoleExistsAsync(role))
+        {
+            await roleManager.CreateAsync(new IdentityRole(role));
+        }
+    }
+
+    var adminUser = new IdentityUser
+    {
+        UserName = "admin",
+        Email = "admin@example.com"
+    };
+
+    var userExists = await userManager.FindByEmailAsync(adminUser.Email);
+    if (userExists == null)
+    {
+        var result = await userManager.CreateAsync(adminUser, "Admin@123");
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(adminUser, "Admin");
+        }
+    }
+
+    var regularUser = new IdentityUser
+    {
+        UserName = "user",
+        Email = "user@example.com"
+    };
+
+    userExists = await userManager.FindByEmailAsync(regularUser.Email);
+    if (userExists == null)
+    {
+        var result = await userManager.CreateAsync(regularUser, "User@123");
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(regularUser, "User");
+        }
+    }
+}
